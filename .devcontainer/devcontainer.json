@@ -1,0 +1,15 @@
+{
+    "name": "canal",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "runArgs": ["--privileged", "--cap-add=NET_ADMIN"],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools-extension-pack"
+            ]
+        }
+    }
+}
