@@ -36,8 +36,8 @@ endif()
 
 
 ### Build bpf objects
-set(ARCH "x86")
-macro(bpfobject bpf_c)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bpfobjects)
+function(bpfobject bpf_c)
     get_filename_component(name ${bpf_c} NAME_WE)
     get_filename_component(dir ${bpf_c} DIRECTORY)
 
@@ -46,17 +46,15 @@ macro(bpfobject bpf_c)
     set(bpf_skel ${bpf_dir}/${name}.skel.h)
     set(bpf_target ${name}_skel)
 
-    message("${vmlinux_dir}, ${libbpf_INCLUDE_DIRS}, ${bpf_c} -o ${bpf_o}")
-
     add_custom_command( 
         OUTPUT ${bpf_o}
         COMMAND 
-            clang -g -O2 -Wall -target bpf -D__TARGET_ARCH_${ARCH}
+            clang -g -O2 -Wall -target bpf 
             -I${vmlinux_dir} -I${libbpf_INCLUDE_DIRS}
-            -c ${bpf_c} -o ${bpf_o}
+             -c ${bpf_c} -o ${bpf_o}
         VERBATIM
         DEPENDS ${bpf_c}
-        COMMENT "[clang] Building BPF object: ${name}"
+        COMMENT "[clang] Building BPF object: ${bpf_o}"
     )
 
     add_custom_command(
@@ -68,26 +66,25 @@ macro(bpfobject bpf_c)
     )
 
     add_library(${bpf_target} INTERFACE)
-    target_include_directories(${bpf_target} INTERFACE ${bpf_dir})
-    target_include_directories(${bpf_target} SYSTEM INTERFACE ${libbpf_INCLUDE_DIRS})
+    target_sources(${bpf_target} INTERFACE ${bpf_skel})
+    target_include_directories(${bpf_target} INTERFACE ${bpf_dir} ${libbpf_INCLUDE_DIRS})
     target_link_libraries(${bpf_target} INTERFACE ${libbpf_LIBRARIES} -lelf -lz)
-endmacro()
+endfunction()
 
 
 file(GLOB apps
     canal/*.bpf.c
 )
 
-# add_library(apps_target) # Just for bpf.c files intellisense
-# target_sources(apps_target PRIVATE ${apps})
-# target_include_directories(apps_target PRIVATE ${vmlinux_dir} ${libbpf_INCLUDE_DIRS})
-
 foreach(app ${apps})
+    get_filename_component(app_name ${app} NAME_WE)
+    get_filename_component(app_dir ${app} DIRECTORY)
+
     bpfobject(${app})
+    if (NOT TARGET ${app_name}_skel)
+        message(FATAL_ERROR "target ${app_name}_skel not exist")
+    endif()
 
-    get_filename_component(name ${app} NAME_WE)
-    get_filename_component(dir ${app} DIRECTORY)
-
-    add_executable(${name} ${dir}/${name}.c)
-    target_link_libraries(${name} PRIVATE ${name}_skel)
+    add_executable(${app_name} ${app_dir}/${app_name}.c)
+    target_link_libraries(${app_name} PRIVATE ${app_name}_skel)
 endforeach()
