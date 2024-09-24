@@ -2,31 +2,32 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
-#include "simple.skel.h"
+#include "controller.skel.h"
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char* format, va_list args) {
     return vfprintf(stderr, format, args);
 }
 
-int main(int argc, char** argv) {
-    struct simple_bpf* skel;
+int main(int argc, char** argv)
+{
+    struct controller_bpf* skel;
     int err;
 
     libbpf_set_print(libbpf_print_fn);
 
-    skel = simple_bpf__open();
+    skel = controller_bpf__open();
     if (!skel) {
         fprintf(stderr, "Failed to open BPF skeleton\n");
         return EXIT_FAILURE;
     }
 
-    err = simple_bpf__load(skel);
+    err = controller_bpf__load(skel);
     if (err) {
         fprintf(stderr, "Failed to load and verify BPF skeleton\n");
         goto cleanup;
     }
 
-    err = simple_bpf__attach(skel);
+    err = controller_bpf__attach(skel);
     if (err) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
@@ -38,6 +39,6 @@ int main(int argc, char** argv) {
     }    
 
 cleanup:
-    simple_bpf__destroy(skel);
+    controller_bpf__destroy(skel);
     return -err;
 }

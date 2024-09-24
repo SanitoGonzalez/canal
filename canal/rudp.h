@@ -36,7 +36,7 @@ struct CanalHeader {
     uint16_t custom;
 };
 
-static void canal_write_header_control(struct CanalHeader* header, CanalHeaderControlFlag control) {
+static void canal_write_header_control(struct CanalHeader* header, const CanalHeaderControlFlag control) {
     header->control = 0;
     header->control |= (control & 0b0011'1111);
     header->control |= (CANAL_VERSION & 0b0000'0011) << 6;

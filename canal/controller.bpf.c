@@ -1,19 +1,16 @@
-#include <linux/bpf.h>
-#include <linux/if_ether.h>
-#include <linux/in.h>
-#include <linux/ip.h>
+#include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
-#include <canal/rudp.h>
+// #include <canal/rudp.h>
 
-struct bpf_map_def SEC("maps") acknowledged = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(int)
-    .value_size = sizeof(u32),
-    .max_entries = 2,
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+} egress_event SEC(".maps");
 
-SEC("ingress_controller")
-int ingress_controller_prog(struct xdp_md* ctx) {
+
+SEC("ingress")
+int ingress_prog(struct xdp_md* ctx) {
     int ipsize = 0;
     void* data = (void*)(long)ctx->data;
     void* data_end = (void*)(long)ctx->data_end;
@@ -34,6 +31,17 @@ int ingress_controller_prog(struct xdp_md* ctx) {
     // 2-2. Else, redirect?
 
     return XDP_PASS;
+}
+
+
+SEC("egress")
+int egress_prog(struct bpf_perf_event_data* ctx) {
+    char msg[] = "Hello from egress";
+    bpf_perf_event_output(ctx, &egress_event, BPF_F_CURRENT_CPU, msg, sizeof(msg));
+
+    // 1. If RELIABLE packet, buffer to map and start retransmission. Else, pass
+
+    return 0;
 }
 
 char LICENSE[] SEC("license") = "Dual MIT/GPL";
