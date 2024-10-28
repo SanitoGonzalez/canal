@@ -1,0 +1,19 @@
+[package]
+name = "canal-ebpf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+canal-common = { path = "../canal-common" }
+
+aya-ebpf = { workspace = true }
+aya-log-ebpf = { workspace = true }
+network-types = "0.0.7"
+
+[build-dependencies]
+which = { workspace = true }
+xtask = { path = "../xtask" }
+
+[[bin]]
+name = "canal"
+path = "src/main.rs"

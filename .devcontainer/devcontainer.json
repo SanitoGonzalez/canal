@@ -1,0 +1,15 @@
+{
+    "name": "canal",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "runArgs": ["--env-file", ".env", "--privileged"],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer"
+            ]
+        }
+    }
+}
