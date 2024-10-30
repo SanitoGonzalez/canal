@@ -28,3 +28,23 @@ AYA_BUILD_EBPF=true CC=${ARCH}-linux-musl-gcc cargo build --package canal --rele
 ```
 The cross-compiled program `target/${ARCH}-unknown-linux-musl/release/canal` can be
 copied to a Linux server or VM and run there.
+
+## Design
+
+### RUDP Header
+
+```mermaid
+packet-beta
+0: "SYN"
+1: "ACK"
+2: "EAK"
+3: "RST"
+4: "NUL"
+5: ""
+6-7: "VER"
+8-15: "Header Length"
+16-31: "Sequence Number"
+32-47: "Checksum"
+48-63: "Custom"
+64-95: "Data (variable length)"
+```
