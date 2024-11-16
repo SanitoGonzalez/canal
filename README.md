@@ -45,6 +45,6 @@ packet-beta
 8-15: "Header Length"
 16-31: "Sequence Number"
 32-47: "Checksum"
-48-63: "Custom"
+48-63: "Data Length"
 64-95: "Data (variable length)"
 ```
