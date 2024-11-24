@@ -6,7 +6,7 @@ pub const RUDP_VER: u8 = 0b0100_0000;
 /// RUDP header, which is present after the UDP header.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
+// #[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
 pub struct RudpHdr {
     pub control: u8,
     pub hdr_len: u8,
