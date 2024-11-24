@@ -34,19 +34,19 @@ fn from_be_bytes(bytes: &[u8]) -> Option<RudpHdr> {
 }
 
 fn main() -> io::Result<()> {
-    let sock = UdpSocket::bind("0.0.0.0:30001")?;
-    sock.connect();
-
+    let sock = UdpSocket::bind("0.0.0.0:30000")?;
     println!("Receiving...");
 
+    let mut count = 0;
+    while count < 1000 {
+        // let mut buf = [0u8; RudpHdr::LEN + std::mem::size_of::<u128>()];
+        let mut buf = [0u8; 128];
 
-    while true {
-        let mut buf = [0u8; RudpHdr::LEN + std::mem::size_of::<u128>()];
-        sock.recv(&mut buf)?;
+        let (bytes_read, src_addr) = sock.recv_from(&mut buf)?;
+        sock.send_to(&mut buf[..bytes_read], src_addr)?;
 
-        let header = from_be_bytes(&buf).unwrap();
-
-        sock.send(&mut buf);
+        print!(".");
+        count += 1;
     }
 
     Ok(())

@@ -38,42 +38,10 @@ fn from_be_bytes(bytes: &[u8]) -> Option<RudpHdr> {
 
 // #[tokio::main]
 fn main() -> io::Result<()> {
-    // let socket = UdpSocket::bind("125.177.169.206:30001")?;
     let sock = UdpSocket::bind("0.0.0.0:30001")?;
     sock.set_read_timeout(Some(Duration::from_secs(3)))?;
     sock.set_write_timeout(Some(Duration::from_secs(3)))?;
-    sock.connect("125.177.169.206:30000")?;
-
-    // let sock_recv = sock.clone();
-    // let receiver = tokio::spawn(async move {
-    //     let mut buffer = [0u8; RudpHdr::LEN + std::mem::size_of::<u128>()];
-    //     let mut count = 0;
-
-    //     while count < 1000 {
-    //         match sock_recv.recv(&mut buffer).await {
-    //             Ok(_) => {
-    //                 let timestamp2 = SystemTime::now()
-    //                 .duration_since(UNIX_EPOCH)
-    //                 .unwrap()
-    //                 .as_micros();
-                
-    //                 let header = from_be_bytes(&buffer).unwrap();
-    //                 // println!("Header bytes: {:02X?}", &buffer[..RudpHdr::LEN]);
-    //                 let timestamp = u128::from_be_bytes(buffer[RudpHdr::LEN..].try_into().unwrap());
-    //                 // println!("Message bytes: {:02X?}", &buffer[RudpHdr::LEN..]);
-    //                 // println!("{buffer}");
-    //                 println!("seq: {}", u16::from_be(header.seq));
-    //                 println!("RTT: {}", timestamp2 - timestamp);
-    //             }
-    //             Err(e) => {
-    //                 eprintln!("Error receiving packet: {}", e);
-    //             }
-    //         }
-
-    //         count += 1;
-    //     }
-    // });
-
+    sock.connect("ip address to remotehost:30000")?;
 
     let mut seq: u16 = 1000;
     let mut rtt_sum: u128 = 0;
