@@ -2,7 +2,7 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::xdp_action,
+    bindings::{iphdr, xdp_action},
     // helpers::{bpf_timer_cancel, bpf_timer_init, bpf_timer_set_callback, bpf_timer_start},
     macros::xdp,
     programs::XdpContext
@@ -60,14 +60,12 @@ fn try_ingress(ctx: XdpContext) -> Result<u32, ()> {
 
     let udphdr: *mut UdpHdr = ptr_at_mut(&ctx, offset)?;
     offset += UdpHdr::LEN;
-    info!(&ctx, " udp");
 
     let rudphdr: *mut RudpHdr = match ptr_at_mut(&ctx, offset) {
         Ok(hdr) => hdr,
         Err(_) => return Ok(xdp_action::XDP_PASS),
     };
     // offset += RudpHdr::LEN;
-    info!(&ctx, " rudp?");
 
     // Checksum
     // if RudpHdr::calc_checksum(&unsafe{*udphdr}, &unsafe{*rudphdr}, offset, ctx.data_end())
@@ -77,15 +75,15 @@ fn try_ingress(ctx: XdpContext) -> Result<u32, ()> {
     // }
 
     // For experiment
-    if unsafe{*udphdr}.dest == 30000 {
+    if u16::from_be(unsafe{*udphdr}.dest) == 30000 {
         info!(&ctx, " received a RDUP packet!");
 
         // Reflect with ACK
         reflect(ethhdr, ipv4hdr, udphdr);
         unsafe {
             (*rudphdr).control = RudpHdr::ACK;
-            let seq = u16::from_be((*rudphdr).seq).wrapping_add(1);
-            (*rudphdr).seq = seq.to_be();
+            // let seq = u16::from_be((*rudphdr).seq).wrapping_add(1);
+            // (*rudphdr).seq = seq.to_be();
         }
 
         //TODO: Recalculate checksum
@@ -102,9 +100,9 @@ fn try_ingress(ctx: XdpContext) -> Result<u32, ()> {
 fn reflect(ethhdr: *mut EthHdr, ipv4hdr: *mut Ipv4Hdr , udphdr: *mut UdpHdr) {
     unsafe {
         // Swap Ethernet addresses
-        let tmp_addr = (*ethhdr).src_addr;
+        let tmp_mac = (*ethhdr).src_addr;
         (*ethhdr).src_addr = (*ethhdr).dst_addr;
-        (*ethhdr).dst_addr = tmp_addr;
+        (*ethhdr).dst_addr = tmp_mac;
 
         // Swap IP addresses
         let tmp_addr = (*ipv4hdr).src_addr;
@@ -115,6 +113,24 @@ fn reflect(ethhdr: *mut EthHdr, ipv4hdr: *mut Ipv4Hdr , udphdr: *mut UdpHdr) {
         let tmp_port = (*udphdr).source;
         (*udphdr).source = (*udphdr).dest;
         (*udphdr).dest = tmp_port;
+
+        // Recacluate checksums
+        (*ipv4hdr).check = 0;
+        (*udphdr).check = 0;
+
+        let data = ipv4hdr as *const u8;
+        let mut sum: u32 = 0;
+        let words = core::slice::from_raw_parts(data as *const u16, Ipv4Hdr::LEN / 2);
+
+        for word in words {
+            sum += u32::from(u16::from_be(*word));
+        }
+
+        while (sum >> 16) != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16);
+        }
+
+        (*ipv4hdr).check = (!sum as u16).to_be();
     }
 }
 
