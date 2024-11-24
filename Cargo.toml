@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["xtask", "canal", "canal-common", "canal-ebpf", "canal-test"]
+members = ["xtask", "canal", "canal-common", "canal-ebpf", "canal-test", "canal-user"]
 default-members = ["xtask", "canal", "canal-common"]
 
 [workspace.dependencies]
