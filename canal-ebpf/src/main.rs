@@ -43,8 +43,6 @@ pub fn rudp_ingress(ctx: XdpContext) -> u32 {
 
 fn try_ingress(ctx: XdpContext) -> Result<u32, ()> {
     let mut offset: usize = 0;
-
-    info!(&ctx, " ingress");
     
     let ethhdr: *mut EthHdr = ptr_at_mut(&ctx, offset)?;
     offset += EthHdr::LEN;

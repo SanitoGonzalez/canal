@@ -7,3 +7,4 @@ edition = "2021"
 canal-common = { path = "../canal-common" }
 network-types = "0.0.7"
 nix = { version = "0.29.0", features = ["socket", "user"] }
+tokio = { version = "1.4", features = ["full"] }
