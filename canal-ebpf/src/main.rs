@@ -2,10 +2,10 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::{iphdr, xdp_action},
-    // helpers::{bpf_timer_cancel, bpf_timer_init, bpf_timer_set_callback, bpf_timer_start},
-    macros::xdp,
-    programs::XdpContext
+    bindings::{iphdr, xdp_action, TC_ACT_OK, TC_ACT_SHOT},
+     macros::{classifier, map, xdp},
+    maps::HashMap,
+    programs::{TcContext, XdpContext}
 };
 use aya_log_ebpf::info;
 
@@ -32,6 +32,10 @@ use network_types::{
 
 // #[map]
 // static mut CONNECTION_REQUESTS: PerfEventArray<ConnectionRequest> = PerfEventArray::new(0);
+
+#[map]
+static RETRANSMISSION_BUFFER: HashMap<u16, [u8; 4096]> =
+    HashMap::<u16, [u8; 4096]>::with_max_entries(512, 0);
 
 #[xdp]
 pub fn rudp_ingress(ctx: XdpContext) -> u32 {
@@ -134,55 +138,55 @@ fn reflect(ethhdr: *mut EthHdr, ipv4hdr: *mut Ipv4Hdr , udphdr: *mut UdpHdr) {
     }
 }
 
-// #[tc]
-// fn rudp_egress(ctx: TcContext) -> i32 {
-//     match try_egress(ctx) {
-//         Ok(ret) => ret,
-//         Err(_) => TC_ACT_SHOT
-//     }
-// }
+#[classifier]
+fn rudp_egress(ctx: TcContext) -> i32 {
+    match try_egress(ctx) {
+        Ok(ret) => ret,
+        Err(_) => TC_ACT_SHOT
+    }
+}
 
-// fn try_egress(ctx: TcContext) -> Result<i32, ()> {
-    // let mut offset: usize = 0;
+fn try_egress(ctx: TcContext) -> Result<i32, ()> {
+    let mut offset: usize = 0;
 
-    // let ethhdr: *const EthHdr = ptr_at(ctx, offset)?;
-    // offset += EthHdr::LEN;
-    // match unsafe {*ethhdr}.ether_type {
-    //     EtherType::Ipv4 => {},
-    //     _ => return Ok(TC_ACT_OK)
-    // }
+    let ethhdr: *const EthHdr = ptr_at(&ctx, offset)?;
+    offset += EthHdr::LEN;
+    match unsafe {*ethhdr}.ether_type {
+        EtherType::Ipv4 => {},
+        _ => return Ok(TC_ACT_OK)
+    }
 
-    // let ipv4hdr: *const Ipv4Hdr = ptr_at(&ctx, offset)?;
-    // offset += Ipv4Hdr::LEN;
-    // match unsafe {*ipv4hdr}.proto {
-    //     IpProto::Udp => {}
-    //     _ => return Ok(TC_ACT_OK),
-    // }
+    let ipv4hdr: *const Ipv4Hdr = ptr_at(&ctx, offset)?;
+    offset += Ipv4Hdr::LEN;
+    match unsafe {*ipv4hdr}.proto {
+        IpProto::Udp => {}
+        _ => return Ok(TC_ACT_OK),
+    }
 
-    // let udphdr: *const UdpHdr = ptr_at(&ctx, offset)?;
-    // offset += UdpHdr::LEN;
+    let udphdr: *const UdpHdr = ptr_at(&ctx, offset)?;
+    offset += UdpHdr::LEN;
 
-    // let rudphdr: *const RudpHdr = match ptr_at(&ctx, offset) {
-    //     Ok(hdr) => hdr,
-    //     Err(_) => return Ok(TC_ACT_OK),
-    // };
-    // offset += RudpHdr::LEN;
-// 
-//     Ok(TC_ACT_OK)
-// }
+    let rudphdr: *const RudpHdr = match ptr_at(&ctx, offset) {
+        Ok(hdr) => hdr,
+        Err(_) => return Ok(TC_ACT_OK),
+    };
+    offset += RudpHdr::LEN;
 
-// #[inline(always)]
-// fn ptr_at<T>(ctx: &XdpContext, offset: usize) -> Result<*const T, ()> {
-//     let start = ctx.data();
-//     let end = ctx.data_end();
-//     let len = mem::size_of::<T>();
+    Ok(TC_ACT_OK)
+}
 
-//     if start + offset + len > end {
-//         return Err(());
-//     }
+#[inline(always)]
+fn ptr_at<T>(ctx: &TcContext, offset: usize) -> Result<*const T, ()> {
+    let start = ctx.data();
+    let end = ctx.data_end();
+    let len = mem::size_of::<T>();
 
-//     Ok((start + offset) as *const T)
-// }
+    if start + offset + len > end {
+        return Err(());
+    }
+
+    Ok((start + offset) as *const T)
+}
 
 #[inline(always)]
 fn ptr_at_mut<T>(ctx: &XdpContext, offset: usize) -> Result<*mut T, ()> {

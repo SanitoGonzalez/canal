@@ -40,7 +40,7 @@ fn main() -> io::Result<()> {
     let mut count = 0;
     while count < 1000 {
         // let mut buf = [0u8; RudpHdr::LEN + std::mem::size_of::<u128>()];
-        let mut buf = [0u8; 128];
+        let mut buf = [0u8; 4096 + 32];
 
         let (bytes_read, src_addr) = sock.recv_from(&mut buf)?;
         sock.send_to(&mut buf[..bytes_read], src_addr)?;
