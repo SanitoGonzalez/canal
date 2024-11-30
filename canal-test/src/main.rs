@@ -41,7 +41,7 @@ fn main() -> io::Result<()> {
     let sock = UdpSocket::bind("0.0.0.0:30001")?;
     sock.set_read_timeout(Some(Duration::from_secs(3)))?;
     sock.set_write_timeout(Some(Duration::from_secs(3)))?;
-    sock.connect("ip address to remotehost:30000")?;
+    sock.connect("127.0.0.1:30000")?;
 
     let mut seq: u16 = 1000;
     let mut rtt_sum: u128 = 0;

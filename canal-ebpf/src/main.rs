@@ -2,9 +2,9 @@
 #![no_main]
 
 use aya_ebpf::{
-    bindings::{iphdr, xdp_action, TC_ACT_OK, TC_ACT_SHOT},
-     macros::{classifier, map, xdp},
-    maps::HashMap,
+    bindings::{bpf_timer, iphdr, xdp_action, TC_ACT_OK, TC_ACT_SHOT, TC_ACT_PIPE},
+    macros::{classifier, map, xdp},
+    maps::{Array, HashMap, PerCpuArray, RingBuf},
     programs::{TcContext, XdpContext}
 };
 use aya_log_ebpf::info;
@@ -17,25 +17,40 @@ use network_types::{
     udp::UdpHdr,
 };
 
-// struct Retransmission {
-//     pub timer: bpf_timer
-// }
+// const RETRANSMISSION_BUFFER_SIZE: usize = 4096;
 
-// #[map]
-// static mut LISTEN_PORTS: HashMap<u16, u8> = HashMap::<u16, u8>::with_max_entries(64, 0);
-
-// #[map]
-// static mut ACTIVE_PORTS: HashMap<u16, u8> = HashMap::<u16, u8>::with_max_entries(32768, 0);
-
-// #[map]
-// static mut RETRANSMISSONS: HashMap<u32, Retransmission> = HashMap::<u32, Retransmission>::with_max_entries(32768, 0);
-
-// #[map]
-// static mut CONNECTION_REQUESTS: PerfEventArray<ConnectionRequest> = PerfEventArray::new(0);
+#[repr(C)]
+pub struct Buf {
+   pub data: [u8; 4096],
+}
 
 #[map]
-static RETRANSMISSION_BUFFER: HashMap<u16, [u8; 4096]> =
-    HashMap::<u16, [u8; 4096]>::with_max_entries(512, 0);
+static mut BUF: PerCpuArray<Buf> = PerCpuArray::with_max_entries(128, 0);
+static BUF_INDEX: u32 = 0;
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+struct Retransmission {
+    pub timer: bpf_timer,
+    pub seq: u16,
+    pub retries: u8,
+    pub buf_index: u32,
+}
+
+impl Retransmission {
+    pub const LEN: usize = mem::size_of::<Retransmission>();
+}
+
+#[map]
+static DATA: RingBuf = RingBuf::with_byte_size(128 * Retransmission::LEN as u32, 0);
+
+// #[map]
+// static RETRANSMISSION_BUFFER: HashMap<u16, [u8; RETRANSMISSION_BUFFER_SIZE]>
+//     = HashMap::<u16, [u8; RETRANSMISSION_BUFFER_SIZE]>::with_max_entries(512, 0);
+
+#[map]
+static RETRANSMISSIONS: HashMap<u16, Retransmission>
+    = HashMap::<u16, Retransmission>::with_max_entries(128, 0);
 
 #[xdp]
 pub fn rudp_ingress(ctx: XdpContext) -> u32 {
@@ -146,7 +161,7 @@ fn rudp_egress(ctx: TcContext) -> i32 {
     }
 }
 
-fn try_egress(ctx: TcContext) -> Result<i32, ()> {
+fn try_egress(ctx: TcContext) -> Result<i32, i32> {
     let mut offset: usize = 0;
 
     let ethhdr: *const EthHdr = ptr_at(&ctx, offset)?;
@@ -170,19 +185,44 @@ fn try_egress(ctx: TcContext) -> Result<i32, ()> {
         Ok(hdr) => hdr,
         Err(_) => return Ok(TC_ACT_OK),
     };
-    offset += RudpHdr::LEN;
+    // offset += RudpHdr::LEN;
+
+    // For experiment
+    if u16::from_be(unsafe{*udphdr}.source) == 30001 {
+        info!(&ctx, " sending a RDUP packet!");
+
+        // let data_len = ctx.data_end() - ctx.data();
+
+        let seq = u16::from_be(unsafe{*rudphdr}.seq);
+
+        let buf_index = BUF_INDEX.wrapping_add(1);
+        let buf = unsafe {
+            let ptr = BUF.get_ptr_mut(buf_index).ok_or(TC_ACT_OK)?;
+            &mut *ptr
+        };
+        // ctx.load_bytes(0, &mut buf.data).map_err(|_| TC_ACT_OK)?;
+
+        let mut rt = DATA.reserve::<Retransmission>(0).ok_or(TC_ACT_OK)?;
+        unsafe{*rt.as_mut_ptr()}.buf_index = buf_index;
+        if let Err(_) = RETRANSMISSIONS.insert(&seq, &unsafe{*rt.as_mut_ptr()}, 0) {
+            info!(&ctx, "Failed to insert packet into retransmission buffer");
+        }
+        rt.submit(0);
+
+        return Ok(TC_ACT_OK);
+    }
 
     Ok(TC_ACT_OK)
 }
 
 #[inline(always)]
-fn ptr_at<T>(ctx: &TcContext, offset: usize) -> Result<*const T, ()> {
+fn ptr_at<T>(ctx: &TcContext, offset: usize) -> Result<*const T, i32> {
     let start = ctx.data();
     let end = ctx.data_end();
     let len = mem::size_of::<T>();
 
     if start + offset + len > end {
-        return Err(());
+        return Err(0);
     }
 
     Ok((start + offset) as *const T)
